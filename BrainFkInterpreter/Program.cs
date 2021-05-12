@@ -14,8 +14,10 @@ namespace BrainFkInterpreter
             Console.WriteLine("     -b, --binaryInput           Binary input mode");
             Console.WriteLine("     -w, --wrapBuffer            Wrap buffer instead of overflow exception");
             Console.WriteLine("     -s, --bufferSize            Sets the buffer size. Default 30000");
-            Console.WriteLine("     --file                      Parse the *.bf file");
+            Console.WriteLine("     -i, --interpret             Parse the CLI input");
             Console.WriteLine("     --raw                       process input raw without scrubbing");
+            Console.WriteLine("Arguments:");
+            Console.WriteLine("     input                       the *.bf file or the CLI input in interpret mode. Must be last argument");
             Environment.Exit(0);
         }
 
