@@ -18,6 +18,14 @@ namespace BrainFkInterpreter
             Console.WriteLine("     --raw                       process input raw without scrubbing");
             Environment.Exit(0);
         }
+
+        public static void PrintError(string msg)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine(msg);
+            Console.ResetColor();
+            Environment.Exit(1);
+        }
         static void Main(string[] args)
         {
             if (args.Length == 0)
@@ -26,30 +34,45 @@ namespace BrainFkInterpreter
                 return;
             }
             var config = BFInterpreter.Options.Config();
-            var file = CLIOptions.HandleOptions(config, args);
             var interp = new BFInterpreter(config);
+            if(CLIOptions.HandleOptions(config, args))
+            {
+                interp.Parse(args.Last());
+            }
+            else
+            {
+                string file = null;
+                if (args.Last().EndsWith("bf"))
+                    file = System.IO.File.ReadAllText(args.Last());
+                else
+                {
+                    PrintError("Error: Only *.bf files can be read by this interpreter");
+                    return;
+                }
+                
+                interp.Parse(file);
+            }
             
-            interp.Parse(file);
         }
     }
 
     class CLIOptions
     {
-        public static string HandleOptions(BFInterpreter.Options opts, string[] args)
+        public static bool HandleOptions(BFInterpreter.Options opts, string[] args)
         {
             
-            string file = null;
+            bool interpret = false;
             foreach (var arg in args)
             {
                 if (arg.StartsWith("-"))
                 {
-                    file = SetOption(opts, arg.Replace("--", "").Replace("-", ""));
+                    interpret = SetOption(opts, arg.Replace("--", "").Replace("-", "")) ?? interpret;
                 }
             }
-            return file ?? args.Last();
+            return interpret;
         }
 
-        private static string SetOption(BFInterpreter.Options opts, string arg)
+        private static bool? SetOption(BFInterpreter.Options opts, string arg)
         {
             var split = arg.Split("=");
             switch (split[0])
@@ -73,12 +96,11 @@ namespace BrainFkInterpreter
                 case "raw":
                     opts.ToggleOptimizeInput();
                     break;
-                case "file":
-                    if (split[1].EndsWith("bf"))
-                        return System.IO.File.ReadAllText(split[1]);
-                    else
-                        throw new ArgumentException("Only *.bf files can be read by this interpreter");
-                default:
+                case "i":
+                case "interpret":
+                    return true;
+                case "h":
+                case "help":
                     Program.PrintHelp();
                     break;
             }
