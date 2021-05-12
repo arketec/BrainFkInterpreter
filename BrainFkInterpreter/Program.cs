@@ -43,6 +43,7 @@ namespace BrainFkInterpreter
             }
             else
             {
+                
                 string file = null;
                 if (args.Last().EndsWith("bf"))
                     file = System.IO.File.ReadAllText(args.Last());
@@ -51,7 +52,7 @@ namespace BrainFkInterpreter
                     PrintError("Error: Only *.bf files can be read by this interpreter");
                     return;
                 }
-                
+                CLIOptions.HandleFileOptions(config, file.Replace("\n", " ").Replace("\t", " ").Replace("\r", ""));
                 interp.Parse(file);
             }
             
@@ -60,6 +61,12 @@ namespace BrainFkInterpreter
 
     class CLIOptions
     {
+        public static bool HandleFileOptions(BFInterpreter.Options opts, string file)
+        {
+            if (file.StartsWith("[options:"))
+                HandleOptions(opts, file.Substring(1, file.IndexOf("]")).Split(" ", StringSplitOptions.RemoveEmptyEntries));
+            return false;
+        }
         public static bool HandleOptions(BFInterpreter.Options opts, string[] args)
         {
             
@@ -167,24 +174,22 @@ namespace BrainFkInterpreter
         public const char EndLoop = ']';
         public const char Increment = '+';
         public const char Decrement = '-';
-
-        private Options _options;
         private byte[] _buffer;
         private int _ptr;
 
-        public Options InterpreterOptions => this._options;
+        public Options InterpreterOptions { get; }
 
         public BFInterpreter(Options options = null)
         {
-            this._options = options ?? Options.Config().SetBufferSize(30000);
-            _buffer = new byte[this._options.BufferSize];
+            this.InterpreterOptions = options ?? Options.Config().SetBufferSize(30000);
+            _buffer = new byte[this.InterpreterOptions.BufferSize];
             _ptr = 0;
         }
 
         public void Parse(string input)
         {
             var tokens = input.ToCharArray();
-            if (this._options.OptimizeInput)
+            if (this.InterpreterOptions.OptimizeInput)
             {
                 tokens = tokens.Where(x => new[] { PtrLeft, PtrRight, StdIn, StdOut, BgnLoop, EndLoop, Increment, Decrement }.Contains(x)).ToArray();
             }
@@ -196,21 +201,21 @@ namespace BrainFkInterpreter
                     case PtrLeft:
                         if (_ptr != 0)
                             _ptr--;
-                        else if (_options.WrapBuffer)
-                            _ptr = _options.BufferSize - 1;
+                        else if (InterpreterOptions.WrapBuffer)
+                            _ptr = InterpreterOptions.BufferSize - 1;
                         else
                             throw new IndexOutOfRangeException("Index fell below the minimum (0)");
                         break;
                     case PtrRight:
-                        if (_ptr < this._options.BufferSize - 1)
+                        if (_ptr < this.InterpreterOptions.BufferSize - 1)
                             _ptr++;
-                        else if (_options.WrapBuffer)
+                        else if (InterpreterOptions.WrapBuffer)
                             _ptr = 0;
                         else
-                            throw new IndexOutOfRangeException($"Index is above the buffer size ({this._options.BufferSize})");
+                            throw new IndexOutOfRangeException($"Index is above the buffer size ({this.InterpreterOptions.BufferSize})");
                         break;
                     case StdIn:
-                        _buffer[_ptr] = this._options.RealtimeMode ? (byte)CaptureRealTime() : this._options.BinaryInput ? Convert.ToByte(Console.ReadLine(), 16) : (byte)Console.ReadLine()[0];
+                        _buffer[_ptr] = this.InterpreterOptions.RealtimeMode ? (byte)CaptureRealTime() : this.InterpreterOptions.BinaryInput ? Convert.ToByte(Console.ReadLine(), 16) : (byte)Console.ReadLine()[0];
                         break;
                     case StdOut:
                         Console.Write((char)_buffer[_ptr]);
@@ -221,10 +226,16 @@ namespace BrainFkInterpreter
                     case Decrement:
                         _buffer[_ptr]--;
                         break;
-                    case EndLoop:
-                        if (this._buffer[_ptr] > 0)
+                    case BgnLoop:
+                        if (this._buffer[_ptr] == 0)
                         {
-                            i = findOpenBracket(tokens, i);
+                            i = FindClosedBracket(tokens, i);
+                        }
+                        break;
+                    case EndLoop:
+                        if (this._buffer[_ptr] != 0)
+                        {
+                            i = FindOpenBracket(tokens, i);
                         }
                         break;
                 }
@@ -235,11 +246,11 @@ namespace BrainFkInterpreter
 
         private void ClearBuffer()
         {
-            Array.Clear(this._buffer, 0, this._options.BufferSize);
+            Array.Clear(this._buffer, 0, this.InterpreterOptions.BufferSize);
             this._ptr = 0;
         }
 
-        private int findOpenBracket(char[] tokens, int closeIndex)
+        private int FindOpenBracket(char[] tokens, int closeIndex)
         {
             int openIndex = closeIndex;
             int counter = 1;
@@ -252,6 +263,21 @@ namespace BrainFkInterpreter
                     counter++;
             }
             return openIndex;
+        }
+
+        private int FindClosedBracket(char[] tokens, int openIndex)
+        {
+            int closeIndex = openIndex;
+            int counter = 1;
+            while (counter > 0)
+            {
+                char c = tokens[++closeIndex];
+                if (c == EndLoop)
+                    counter--;
+                else if (c == BgnLoop)
+                    counter++;
+            }
+            return closeIndex;
         }
 
         private char CaptureRealTime()
